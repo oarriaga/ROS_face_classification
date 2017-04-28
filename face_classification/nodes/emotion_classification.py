@@ -31,7 +31,7 @@ class CNNEmotionClassificationNode:
 
         self.emotion_classifier = EmotionClassifier(self.package_path +
                     '/trained_models/emotion_classifier_v2.hdf5')
-        self.event_out_publisher = rospy.Publisher('~event_out', String)
+        self.event_out_publisher = rospy.Publisher('~event_out', String, queue_size=1)
         self.event_in_subscriber = rospy.Subscriber('~event_in', String,
                                                 self.event_in_callback)
         self.save_image_path = self.package_path + '/images/image.png'
@@ -75,7 +75,7 @@ class CNNEmotionClassificationNode:
         if self.event_in:
             if self.event_in.data == 'e_trigger':
                 self.event_out_publisher.publish(String('e_success'))
-                self.image_subscriber = rospy.Subscriber('/camera/rgb/image_raw',
+                self.image_subscriber = rospy.Subscriber('~image',
                                                 Image, self.image_callback)
                 if self.image == None:
                     rospy.logerr('NO IMAGE FROM CAMERA TOPIC')
@@ -102,7 +102,7 @@ class CNNEmotionClassificationNode:
                         predicted_label = self.emotion_classifier.predict(face)
                         cv2.putText(gray_image, predicted_label, (x, y - 30),
                                     cv2.FONT_HERSHEY_SIMPLEX, .7, (255, 0, 0),
-                                                                    1, cv2.LINE_AA)
+                                                                    1, cv2.CV_AA)
                     cv2.imwrite(self.save_image_path, gray_image)
                     self.event_out_publisher.publish(String('e_success'))
                     self.event_in = None
