@@ -32,7 +32,7 @@ class CNNGenderClassificationNode:
 
         self.emotion_classifier = GenderClassifier(self.package_path +
                     '/trained_models/gender_classifier.hdf5')
-        self.event_out_publisher = rospy.Publisher('~event_out', String)
+        self.event_out_publisher = rospy.Publisher('~event_out', String, queue_size=1)
         self.event_in_subscriber = rospy.Subscriber('~event_in', String,
                                                 self.event_in_callback)
         self.save_image_path = self.package_path + '/images/gender_image.png'
@@ -58,9 +58,9 @@ class CNNGenderClassificationNode:
         if self.event_in:
             if self.event_in.data == 'e_trigger':
                 self.event_out_publisher.publish(String('e_success'))
-                self.image_subscriber = rospy.Subscriber('/camera/rgb/image_raw',
+                self.image_subscriber = rospy.Subscriber('~image',
                                                 Image, self.image_callback)
-                if self.image == None:
+                if self.image is None:
                     rospy.logerr('NO IMAGE FROM CAMERA TOPIC')
                     return
                 self.image_subscriber.unregister()
@@ -88,7 +88,7 @@ class CNNGenderClassificationNode:
                         predicted_label = self.emotion_classifier.predict(face)
                         cv2.putText(self.image, predicted_label, (x, y - 30),
                                     cv2.FONT_HERSHEY_SIMPLEX, .7, (255, 0, 0),
-                                                                    1, cv2.LINE_AA)
+                                                                    1, cv2.CV_AA)
                     self.image = cv2.cvtColor(self.image, cv2.COLOR_RGB2BGR)
                     cv2.imwrite(self.save_image_path, self.image)
                     self.event_out_publisher.publish(String('e_success'))
