@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 PACKAGE = 'face_classification'
-NODE = 'emotion_classification'
+NODE = 'face_classification'
 
 import rospy
 from std_msgs.msg import String
@@ -10,6 +10,7 @@ from sensor_msgs.msg import Image
 from face_classification.gender_classifier import GenderClassifier
 from face_classification.utils import preprocess_image
 from face_classification.face_detector import FaceDetector
+from mcr_perception_msgs.msg import FaceList, Face
 from cv_bridge import CvBridge, CvBridgeError
 
 import cv2
@@ -23,8 +24,6 @@ class CNNGenderClassificationNode:
     IMAGE_CACHE_SIZE = 30
 
     def __init__(self):
-
-        rospy.init_node(NODE, log_level=rospy.DEBUG)
         self.package_path = roslib.packages.get_pkg_dir(PACKAGE)
         self.bridge = CvBridge()
         self.face_detector = FaceDetector(self.package_path +
@@ -32,6 +31,7 @@ class CNNGenderClassificationNode:
 
         self.emotion_classifier = GenderClassifier(self.package_path +
                     '/trained_models/gender_classifier.hdf5')
+        self.face_list_publisher = rospy.Publisher('~faces', FaceList, queue_size=1)
         self.event_out_publisher = rospy.Publisher('~event_out', String, queue_size=1)
         self.event_in_subscriber = rospy.Subscriber('~event_in', String,
                                                 self.event_in_callback)
@@ -76,26 +76,38 @@ class CNNGenderClassificationNode:
                     rospy.logerr('NO FACES DETECTED')
                     return
                 else:
+                    face_objects = []
                     for (x, y, w, h) in faces:
                         cv2.rectangle(self.image, (x - self.x_offset, y - self.y_offset),
-                                        (x + w + self.x_offset, y + h + self.y_offset),
-                                                                        (255, 0, 0), 2)
+                                      (x + w + self.x_offset, y + h + self.y_offset),
+                                      (255, 0, 0), 2)
                         face = self.image[(y - self.y_offset):(y + h + self.y_offset),
                                           (x - self.x_offset):(x + w + self.x_offset)]
                         face = cv2.resize(face, (48, 48))
+                        face_obj = Face()
+                        face_obj.image = self.bridge.cv2_to_imgmsg(face, 'bgr8')
                         face = np.expand_dims(face, 0)
                         face = preprocess_image(face)
                         predicted_label = self.emotion_classifier.predict(face)
+                        face_obj.gender = predicted_label
+                        face_objects.append(face_obj)
                         cv2.putText(self.image, predicted_label, (x, y - 30),
                                     cv2.FONT_HERSHEY_SIMPLEX, .7, (255, 0, 0),
-                                                                    1, cv2.CV_AA)
+                                    1, cv2.CV_AA)
+                        pass
+
+                    face_list = FaceList()
+                    face_list.faces = face_objects
+                    self.face_list_publisher.publish(face_list)
                     self.image = cv2.cvtColor(self.image, cv2.COLOR_RGB2BGR)
                     cv2.imwrite(self.save_image_path, self.image)
                     self.event_out_publisher.publish(String('e_success'))
                     self.event_in = None
 
 if __name__ == '__main__':
+    rospy.init_node(NODE)
+    rospy.loginfo("initializing node [%s]" % NODE)
     node = CNNGenderClassificationNode()
     while not rospy.is_shutdown():
         node.main_loop()
-        rospy.sleep(0.1)
+        rospy.sleep(0.5)
