@@ -1,12 +1,11 @@
 #!/usr/bin/env python
 
 PACKAGE = 'face_classification'
-NODE = 'emotion_classification'
+NODE = 'gender_classification'
 
 import rospy
 from std_msgs.msg import String
 from sensor_msgs.msg import Image
-#from face_classification.emotion_classifier import EmotionClassifier
 from face_classification.gender_classifier import GenderClassifier
 from face_classification.utils import preprocess_image
 from face_classification.face_detector import FaceDetector
@@ -30,11 +29,11 @@ class CNNGenderClassificationNode:
         self.face_detector = FaceDetector(self.package_path +
                     '/trained_models/haarcascade_frontalface_default.xml')
 
-        self.emotion_classifier = GenderClassifier(self.package_path +
+        self.gender_classifier = GenderClassifier(self.package_path +
                     '/trained_models/gender_classifier.hdf5')
         self.event_out_publisher = rospy.Publisher('~event_out', String, queue_size=1)
         self.event_in_subscriber = rospy.Subscriber('~event_in', String,
-                                                self.event_in_callback)
+                                                    self.event_in_callback)
         self.save_image_path = self.package_path + '/images/gender_image.png'
         self.image = None
         self.event_in = None
@@ -54,12 +53,27 @@ class CNNGenderClassificationNode:
             print(error)
         self.image = cv_image
 
+    def adjust_rectangle(self, x, y, w, h, image_size):
+        rospy.loginfo(image_size)
+        if x < self.x_offset:
+            x = self.x_offset
+            pass
+        if y < self.y_offset:
+            y = self.y_offset
+            pass
+        if x + w + self.x_offset > image_size[0]:
+            w = image_size[0] - 1 - x - self.x_offset
+            pass
+        if y + h + self.y_offset > image_size[1]:
+            h = image_size[1] - 1 - y - self.y_offset
+            pass
+        return x, y, w, h
+
     def main_loop(self):
         if self.event_in:
             if self.event_in.data == 'e_trigger':
                 self.event_out_publisher.publish(String('e_success'))
-                self.image_subscriber = rospy.Subscriber('~image',
-                                                Image, self.image_callback)
+                self.image_subscriber = rospy.Subscriber('~image', Image, self.image_callback)
                 if self.image is None:
                     rospy.logerr('NO IMAGE FROM CAMERA TOPIC')
                     return
@@ -77,18 +91,19 @@ class CNNGenderClassificationNode:
                     return
                 else:
                     for (x, y, w, h) in faces:
+                        x, y, w, h = self.adjust_rectangle(x, y, w, h, np.shape(self.image)[:2])
                         cv2.rectangle(self.image, (x - self.x_offset, y - self.y_offset),
-                                        (x + w + self.x_offset, y + h + self.y_offset),
-                                                                        (255, 0, 0), 2)
+                                      (x + w + self.x_offset, y + h + self.y_offset),
+                                      (255, 0, 0), 2)
                         face = self.image[(y - self.y_offset):(y + h + self.y_offset),
                                           (x - self.x_offset):(x + w + self.x_offset)]
                         face = cv2.resize(face, (48, 48))
                         face = np.expand_dims(face, 0)
                         face = preprocess_image(face)
-                        predicted_label = self.emotion_classifier.predict(face)
+                        predicted_label = self.gender_classifier.predict(face)
                         cv2.putText(self.image, predicted_label, (x, y - 30),
                                     cv2.FONT_HERSHEY_SIMPLEX, .7, (255, 0, 0),
-                                                                    1, cv2.CV_AA)
+                                    1, cv2.CV_AA)
                     self.image = cv2.cvtColor(self.image, cv2.COLOR_RGB2BGR)
                     cv2.imwrite(self.save_image_path, self.image)
                     self.event_out_publisher.publish(String('e_success'))
