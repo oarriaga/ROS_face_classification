@@ -1,10 +1,7 @@
 <?xml version="1.0"?>
 <launch>
-
-  <include file="$(find openni2_launch)/launch/openni2.launch" />
+  <!--include file="$(find openni2_launch)/launch/openni2.launch" /-->
   <node pkg="face_classification" type="emotion_classification.py"  name="emotion_classification" required="true">
-    <param name="camera_rgb_topic" value="/camera/rgb/image_raw" type="string"/>
+    <remap from="~image" to="/cam3d/rgb/image_raw" />
   </node>
-
-
 </launch>
