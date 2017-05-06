@@ -76,7 +76,7 @@ class CNNEmotionClassificationNode:
             if self.event_in.data == 'e_trigger':
                 self.event_out_publisher.publish(String('e_success'))
                 self.image_subscriber = rospy.Subscriber('~image', Image, self.image_callback)
-                if self.image == None:
+                if self.image is None:
                     rospy.logerr('NO IMAGE FROM CAMERA TOPIC')
                     return
                 self.image_subscriber.unregister()
