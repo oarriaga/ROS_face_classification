@@ -34,6 +34,7 @@ class CNNEmotionClassificationNode:
         self.event_out_publisher = rospy.Publisher('~event_out', String, queue_size=1)
         self.event_in_subscriber = rospy.Subscriber('~event_in', String,
                                                 self.event_in_callback)
+        self.face_label_publisher = rospy.Publisher('~face_image', Image, queue_size=1)
         self.save_image_path = self.package_path + '/images/image.png'
         self.image = None
         self.event_in = None
@@ -80,6 +81,7 @@ class CNNEmotionClassificationNode:
                     rospy.logerr('NO IMAGE FROM CAMERA TOPIC')
                     return
                 self.image_subscriber.unregister()
+                rgb_image = self.image.copy()
                 gray_image = cv2.cvtColor(self.image, cv2.COLOR_BGR2GRAY)
                 try:
                     faces = self.face_detector.detect(gray_image)
@@ -89,20 +91,28 @@ class CNNEmotionClassificationNode:
 
                 if len(faces) == 0:
                     rospy.logerr('NO FACES DETECTED')
+                    output_image = Image()
+                    #image_flipped = cv2.cvtColor(image_flipped, cv2.COLOR_RGB2BGR)
+                    output_image = self.bridge.cv2_to_imgmsg(rgb_image, 'bgr8')
+                    self.face_label_publisher.publish(output_image)
                     return
                 else:
                     for (x, y, w, h) in faces:
-                        cv2.rectangle(gray_image, (x, y), (x + w, y + h), (255, 0, 0), 2)
+                        cv2.rectangle(rgb_image, (x, y), (x + w, y + h), (255, 0, 0), 2)
                         face = gray_image[y:(y + h),x:(x + w)]
                         face = cv2.resize(face, (48, 48))
                         face = np.expand_dims(face, 0)
                         face = np.expand_dims(face, -1)
                         face = preprocess_image(face)
                         predicted_label = self.emotion_classifier.predict(face)
-                        cv2.putText(gray_image, predicted_label, (x, y - 30),
+                        cv2.putText(rgb_image, predicted_label, (x, y - 30),
                                     cv2.FONT_HERSHEY_SIMPLEX, .7, (255, 0, 0),
                                     1, cv2.CV_AA)
-                    cv2.imwrite(self.save_image_path, gray_image)
+                    cv2.imwrite(self.save_image_path, rgb_image)
+                    output_image = Image()
+                    #image_flipped = cv2.cvtColor(image_flipped, cv2.COLOR_RGB2BGR)
+                    output_image = self.bridge.cv2_to_imgmsg(rgb_image, 'bgr8')
+                    self.face_label_publisher.publish(output_image)
                     self.event_out_publisher.publish(String('e_success'))
                     self.event_in = None
 
