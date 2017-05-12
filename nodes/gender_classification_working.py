@@ -39,8 +39,8 @@ class CNNGenderClassificationNode:
         self.image = None
         self.event_in = None
         self.event_in_start_time = None
-        self.x_offset = 20
-        self.y_offset = 40
+        self.x_offset = 10
+        self.y_offset = 20
 
     def event_in_callback(self, msg):
         rospy.loginfo('EVENT_IN: {}'.format(msg.data))
@@ -79,10 +79,8 @@ class CNNGenderClassificationNode:
                     rospy.logerr('NO IMAGE FROM CAMERA TOPIC')
                     return
                 self.image_subscriber.unregister()
-                image_flipped = self.image.copy()
-                image_flipped = cv2.flip(self.image, 0)
-                gray_image = cv2.cvtColor(image_flipped, cv2.COLOR_BGR2GRAY)
-                image_flipped = cv2.cvtColor(image_flipped, cv2.COLOR_BGR2RGB)
+                gray_image = cv2.cvtColor(self.image, cv2.COLOR_BGR2GRAY)
+                #self.image = cv2.cvtColor(self.image, cv2.COLOR_BGR2RGB)
                 try:
                     faces = self.face_detector.detect(gray_image)
                 except:
@@ -91,18 +89,15 @@ class CNNGenderClassificationNode:
 
                 if len(faces) == 0:
                     rospy.logerr('NO FACES DETECTED')
-                    output_image = Image()
-                    output_image = self.bridge.cv2_to_imgmsg(image_flipped, 'rgb8')
-                    self.face_label_publisher.publish(output_image)
                     return
                 else:
                     face_objects = []
                     for (x, y, w, h) in faces:
-                        #x, y, w, h = self.adjust_rectangle(x, y, w, h, np.shape(image_flipped)[:2])
-                        cv2.rectangle(image_flipped, (x - self.x_offset, y - self.y_offset),
+                        x, y, w, h = self.adjust_rectangle(x, y, w, h, np.shape(self.image)[:2])
+                        cv2.rectangle(self.image, (x - self.x_offset, y - self.y_offset),
                                       (x + w + self.x_offset, y + h + self.y_offset),
                                       (255, 0, 0), 2)
-                        face = image_flipped[(y - self.y_offset):(y + h + self.y_offset),
+                        face = self.image[(y - self.y_offset):(y + h + self.y_offset),
                                           (x - self.x_offset):(x + w + self.x_offset)]
                         try:
                             face = cv2.resize(face, (48, 48))
@@ -116,8 +111,8 @@ class CNNGenderClassificationNode:
                         predicted_label = self.gender_classifier.predict(face)
                         face_obj.gender = predicted_label
                         face_objects.append(face_obj)
-                        cv2.putText(image_flipped, predicted_label, (x, y - 30),
-                                    cv2.FONT_HERSHEY_SIMPLEX, .9, (255, 0, 0),
+                        cv2.putText(self.image, predicted_label, (x, y - 30),
+                                    cv2.FONT_HERSHEY_SIMPLEX, .7, (255, 0, 0),
                                     1, cv2.CV_AA)
                         pass
 
@@ -125,12 +120,11 @@ class CNNGenderClassificationNode:
                     face_list.faces = face_objects
                     self.face_list_publisher.publish(face_list)
                     output_image = Image()
-                    #image_flipped = cv2.cvtColor(image_flipped, cv2.COLOR_RGB2BGR)
-                    output_image = self.bridge.cv2_to_imgmsg(image_flipped, 'rgb8')
+                    output_image = self.bridge.cv2_to_imgmsg(self.image, 'bgr8')
                     self.face_label_publisher.publish(output_image)
           
                     #self.image = cv2.cvtColor(self.image, cv2.COLOR_RGB2BGR)
-                    cv2.imwrite(self.save_image_path, image_flipped)
+                    cv2.imwrite(self.save_image_path, self.image)
                     self.event_out_publisher.publish(String('e_success'))
                     self.event_in = None
 

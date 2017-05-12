@@ -46,6 +46,8 @@ class CNNGenderClassificationNode:
         rospy.loginfo('EVENT_IN: {}'.format(msg.data))
         self.event_in_start_time = rospy.Time.now()
         self.event_in = msg
+        #if self.event_in.data == 'e_trigger':
+            #self.image_subscriber = rospy.Subscriber('~image', Image, self.image_callback)
 
     def image_callback(self, msg):
         try:
@@ -53,6 +55,10 @@ class CNNGenderClassificationNode:
         except CvBridgeError as error:
             print(error)
         self.image = cv_image
+        #self.image = cv2.resize(self.image, (360, 640))
+        #self.image = cv2.flip(self.image, 0)
+        #if self.image is not None:
+        #    self.image = self.image[::-1,:]
 
     def adjust_rectangle(self, x, y, w, h, image_size):
         rospy.loginfo(image_size)
@@ -78,36 +84,37 @@ class CNNGenderClassificationNode:
                 if self.image is None:
                     rospy.logerr('NO IMAGE FROM CAMERA TOPIC')
                     return
+
+                rospy.logerr('GOT IMAGE!!')
                 self.image_subscriber.unregister()
-                image_flipped = self.image.copy()
-                image_flipped = cv2.flip(self.image, 0)
-                gray_image = cv2.cvtColor(image_flipped, cv2.COLOR_BGR2GRAY)
-                image_flipped = cv2.cvtColor(image_flipped, cv2.COLOR_BGR2RGB)
+                self.image = cv2.flip(self.image, 0)
+                cv2.imwrite(self.package_path + '/window.jpg', self.image)
+                gray_image = cv2.cvtColor(self.image, cv2.COLOR_BGR2GRAY)
+                #self.image = cv2.cvtColor(self.image, cv2.COLOR_BGR2RGB)
                 try:
                     faces = self.face_detector.detect(gray_image)
                 except:
                     rospy.logerr(self.package_path)
+                    self.image = None
                     return
 
                 if len(faces) == 0:
                     rospy.logerr('NO FACES DETECTED')
-                    output_image = Image()
-                    output_image = self.bridge.cv2_to_imgmsg(image_flipped, 'rgb8')
-                    self.face_label_publisher.publish(output_image)
+                    self.image = None
                     return
                 else:
                     face_objects = []
                     for (x, y, w, h) in faces:
-                        #x, y, w, h = self.adjust_rectangle(x, y, w, h, np.shape(image_flipped)[:2])
-                        cv2.rectangle(image_flipped, (x - self.x_offset, y - self.y_offset),
+                        x, y, w, h = self.adjust_rectangle(x, y, w, h, np.shape(self.image)[:2])
+                        rospy.logerr(self.image.shape)
+                        cv2.rectangle(self.image, (x - self.x_offset, y - self.y_offset),
                                       (x + w + self.x_offset, y + h + self.y_offset),
                                       (255, 0, 0), 2)
-                        face = image_flipped[(y - self.y_offset):(y + h + self.y_offset),
+                        face = self.image[(y - self.y_offset):(y + h + self.y_offset),
                                           (x - self.x_offset):(x + w + self.x_offset)]
-                        try:
+                        try:                        
                             face = cv2.resize(face, (48, 48))
                         except:
-                            rospy.logerr('Resize not possible.')
                             continue
                         face_obj = Face()
                         face_obj.image = self.bridge.cv2_to_imgmsg(face, 'bgr8')
@@ -116,8 +123,8 @@ class CNNGenderClassificationNode:
                         predicted_label = self.gender_classifier.predict(face)
                         face_obj.gender = predicted_label
                         face_objects.append(face_obj)
-                        cv2.putText(image_flipped, predicted_label, (x, y - 30),
-                                    cv2.FONT_HERSHEY_SIMPLEX, .9, (255, 0, 0),
+                        cv2.putText(self.image, predicted_label, (x, y - 30),
+                                    cv2.FONT_HERSHEY_SIMPLEX, .7, (255, 0, 0),
                                     1, cv2.CV_AA)
                         pass
 
@@ -125,14 +132,15 @@ class CNNGenderClassificationNode:
                     face_list.faces = face_objects
                     self.face_list_publisher.publish(face_list)
                     output_image = Image()
-                    #image_flipped = cv2.cvtColor(image_flipped, cv2.COLOR_RGB2BGR)
-                    output_image = self.bridge.cv2_to_imgmsg(image_flipped, 'rgb8')
+                    output_image = self.bridge.cv2_to_imgmsg(self.image, 'bgr8')
                     self.face_label_publisher.publish(output_image)
-          
                     #self.image = cv2.cvtColor(self.image, cv2.COLOR_RGB2BGR)
-                    cv2.imwrite(self.save_image_path, image_flipped)
+                    cv2.imwrite(self.save_image_path, self.image)
                     self.event_out_publisher.publish(String('e_success'))
                     self.event_in = None
+                    self.image = None
+            else:
+                self.event_in = None
 
 if __name__ == '__main__':
     rospy.init_node(NODE)

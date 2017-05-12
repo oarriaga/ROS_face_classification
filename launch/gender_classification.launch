@@ -3,7 +3,8 @@
 
   <!--include file="$(find openni2_launch)/launch/openni2.launch" /-->
   <node pkg="face_classification" type="gender_classification.py"  name="gender_classification" required="true">
-      <remap from="~image" to="/cam3d/rgb/image_raw" />
+	  <!--remap from="~image" to="/cam3d/rgb/image_raw" /-->
+	  <remap from="~image" to="/usb_cam/image_raw" />
   </node>
 
 

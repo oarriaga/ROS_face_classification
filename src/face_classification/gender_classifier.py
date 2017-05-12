@@ -8,7 +8,7 @@ class GenderClassifier:
 
     def __init__(self, model_path=None):
 
-        self.labels = {0:'man',1:'woman'}
+        self.labels = {0:'woman',1:'man'}
         if model_path != None:
             self.model_path = model_path
         else:
